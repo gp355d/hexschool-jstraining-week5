@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/vue-loading-overlay@3/dist/vue-loading.css" rel="stylesheet">
+  <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.1/css/all.min.css' />
+</head>
+
+<body>
+  <div id="app" class="container">
+
+    <div class="row mt-4">
+      <!--vue的v-for語法將products陣列內的資料跑迴圈並依序存放至item變數內，需搭配:key=""-->
+      <div class="col-md-4 mb-4" v-for="item in products" :key="item.id">
+        <div class="card border-0 shadow-sm">
+          <!--動態載入背景圖片，background-image:url()-->
+          <div style="height: 150px; background-size: cover; background-position: center"
+            :style="{backgroundImage: `url(${item.imageUrl[0]})`}"></div>
+          <div class="card-body">
+            <span class="badge badge-secondary float-right ml-2">{{item.category}}</span>
+            <h5 class="card-title">
+              <a href="#" class="text-dark">{{item.title}}</a>
+            </h5>
+            <p class="card-text" v-html="item.content">
+              {{item.content}}
+            </p>
+            <div class="d-flex justify-content-between align-items-baseline">
+              <!--如果原始價錢統等同販售價錢，就顯示原始價錢-->
+              <div class="h5" v-if="item.origin_price === item.price">原價{{item.origin_price | money}}元
+              </div>
+              <!--如果原始價錢統不等同販售價錢，將兩者價錢都顯示出來-->
+              <div v-else>
+                <del class="h6">原價{{item.origin_price | money}}元</del>
+                <div class="h5">
+                  現在只要{{item.price | money}}元
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer d-flex">
+            <!--如果status.loadingItem的id等同商品顯示的id，就將按鈕給disabled-->
+            <button :disabled="status.loadingItem === item.id" type="button" class="btn btn-outline-secondary btn-sm"
+              @click="getPeoductDetail(item.id)">
+              <!--如果status.loadingItem的id等同商品顯示的id，就將讀取畫面顯示出來-->
+              <i class="spinner-grow spinner-grow-sm" v-if="status.loadingItem === item.id"></i>
+              查看更多
+            </button>
+            <button :disabled="status.loadingItem === item.id" type="button"
+              class="btn btn-outline-danger btn-sm ml-auto" @click="addToCart(item.id)">
+              <i class="spinner-grow spinner-grow-sm" v-if="status.loadingItem === item.id"></i>
+              加到購物車
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!--詳細資料modal-->
+    <div id="productModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
+      aria-hidden="true">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 id="exampleModalLabel" class="modal-title">
+              {{tmpProducts.title}}
+            </h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <!--:src，動態載入圖片連結，-->
+            <img class="img-fluid" :src="tmpProducts.imageUrl" alt>
+            <blockquote class="blockquote mt-3">
+              <p class="mb-0" v-html="tmpProducts.content"></p>
+              <footer class="blockquote-footer text-right">
+                {{ tmpProducts.description }}
+              </footer>
+            </blockquote>
+            <div class="d-flex justify-content-between align-items-baseline">
+              <!--如果販售價錢不存在，就顯示原始價錢-->
+              <div v-if="tmpProducts.price===0" class="h4">
+                原價 {{ tmpProducts.origin_price | money}} 元
+              </div>
+              <del v-if="tmpProducts.price" class="h6">原價{{ tmpProducts.origin_price | money}} 元</del>
+              <div v-if="tmpProducts.price" class="h4">
+                現在只要 {{ tmpProducts.price | money}} 元
+              </div>
+              <!-- <div  class="h5" v-if="tmpProducts.origin_price === tmpProducts.price">{{tmpProducts.origin_price}}元
+                    </div>
+                    <div v-else>
+                      <del class="h6">原價{{tmpProducts.origin_price}}元</del>
+                      <div class="h5">
+                        現在只要{{tmpProducts.price}}元
+                      </div>
+                    </div> -->
+            </div>
+            <select name class="form-control mt-3" v-model="tmpProducts.num">
+              <option value="0" disabled selected>
+                請選擇數量
+              </option>
+              <!--vue的v-for語法從1跑迴圈到10，並將索引值i動態載入至option的value屬性內-->
+              <option v-for="i in 10" :key="i" :value="i">
+                選購 {{i}} {{tmpProducts.unit}}
+              </option>
+            </select>
+          </div>
+          <div class="modal-footer">
+
+            <div class="text-muted text-nowrap mr-3">
+              小計
+              <strong>{{ tmpProducts.num * tmpProducts.price  | money}}</strong> 元
+            </div>
+            <button type="button" class="btn btn-primary" @click="addToCart(tmpProducts.id, tmpProducts.num)">
+              <i v-if=" status.loadingItem === tmpProducts.id " class="fas fa-spinner fa-spin"></i>
+              加到購物車
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!--購物車-->
+    <div class="my-5 row justify-content-center">
+      <div class="col-md-6">
+        <div class="text-right mb-3">
+          <button type="button" class="btn btn-outline-danger btn-sm" @click="removeAllCartItem">
+            <i class="far fa-trash-alt"> 刪除所有品項</i>
+          </button>
+        </div>
+        <table class="table">
+          <thead>
+            <th>刪除</th>
+            <th>品名</th>
+            <th width="150px">
+              數量
+            </th>
+            <th>單位</th>
+            <th>單價</th>
+          </thead>
+          <tbody>
+            <!--從carts陣列跑迴圈，依序存放至item變數內，回傳回來的id是包在prodict物件內-->
+            <tr v-for="item in carts" :key="item.product.id">
+              <td class="align-middle">
+                <button type="button" class="btn btn-outline-danger btn-sm" @click="removeCartItem(item.product.id)">
+                  <i class="far fa-trash-alt"></i>
+                </button>
+              </td>
+              <td class="align-middle">
+                {{item.product.title}}
+              </td>
+              <td class="align-middle">
+                <div class="input-group">
+                  <div class="input-group-append">
+                    <!--當quantity的值等於1，就將按鈕disabled，item.quantity--，為quantity加1，updateQuanity()為更新數量函式---->
+                    <button class="btn btn-outline-primary" type="button" :disabled="item.quantity === 1"
+                      @click="item.quantity--;updateQuanity(item.product.id, item.quantity)">
+                      <!--如果status.isloadingupdateCart的id等同購物車顯示的商品id，就將讀取畫面顯示出來，否則就顯示- -->
+                      <span v-if="status.isloadingupdateCart === item.product.id"
+                        class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                      <span v-else>-</span>
+                    </button>
+                  </div>
+                  <!--@change="updateQuanity(item.product.id, item.quantity)，當有變動數值，就觸發該函式"-->
+                  <input id="inlineFormInputGroupUsername" v-model="item.quantity" min="1" type="number"
+                    class="form-control text-center" @change="updateQuanity(item.product.id, item.quantity)">
+                  <div class="input-group-prepend">
+                    <button class="btn btn-outline-primary" type="button"
+                      @click="item.quantity++;updateQuanity(item.product.id, item.quantity)">
+                      <!--如果status.isloadingupdateCart的id等同購物車顯示的商品id，就將讀取畫面顯示出來，否則就顯示+ -->
+                      <span v-if="status.isloadingupdateCart === item.product.id"
+                        class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                      <span v-else>+</span>
+                    </button>
+                    </button>
+                  </div>
+                </div>
+              </td>
+              <td class="align-middle">
+                {{ item.product.unit }}
+              </td>
+              <td class="align-middle text-right">
+                {{ item.product.price | money}}
+              </td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4" class="text-right">
+                總計
+              </td>
+              <td class="text-right">
+                {{ cartTotal | money }}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    <!--驗證表單-->
+    <!--rules=“required|email”，加入vue驗證規則，此為必填規則及驗證email格式是否符合，required|email中間不能有空白。
+            v-slot="{ errors }"為錯誤訊息回饋，對應{{errors[0]}}
+            :class=“classes”，動態載入class
+            v-slot="{ invalid }"，驗證表單是否完整填寫-->
+    <loading :active.sync="isLoading"></loading>
+    <validation-observer v-slot="{ invalid }">
+      <form @submit.prevent="submitForm">
+        <validation-provider rules="required" v-slot="{ errors, classes }">
+          <label for="username">收件人姓名</label>
+          <input id="username" type="email" name="收件人姓名" v-model="email" class="form-control" :class="classes"
+            placeholder="輸入username">
+          <!-- 錯誤訊息 -->
+          <span class="invalid-feedback">{{ errors[0] }}</span>
+        </validation-provider>
+
+        <validation-provider rules="required|email" v-slot="{ errors, classes }">
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input id="email" type="email" name="email" v-model="email" class="form-control" :class="classes"
+              placeholder="輸入email">
+            <span class="invalid-feedback">{{ errors[0] }}</span>
+          </div>
+        </validation-provider>
+        <!--rules="required|min:8"，驗證輸入數字至少要8位數-->
+        <validation-provider rules="required|min:8" v-slot="{ errors, classes }">
+          <div class="form-group">
+            <label for="phone">電話</label>
+            <input :class="classes" v-model="phonenumber" name="電話" type="tel" class="form-control" id="phone"
+              placeholder="輸入電話">
+            <span class="invalid-feedback">{{ errors[0] }}</span>
+          </div>
+        </validation-provider>
+
+        <validation-provider rules="required" v-slot="{ errors, classes }">
+          <div class="form-group">
+            <label for="address">地址</label>
+            <input :class="classes" v-model="address" name="地址" type="text" class="form-control" id="address"
+              placeholder="輸入地址">
+            <span class="invalid-feedback">{{ errors[0] }}</span>
+          </div>
+        </validation-provider>
+
+        <validation-provider rules="required" v-slot="{ errors, classes }">
+          <div class="form-group">
+            <label for="pay">購買方式</label>
+            <select :class="classes" class="form-control" id="pay" name="付款方式">
+              <option value="0" selected disabled>請選擇付款方式</option>
+              <option v-for="(item,i) in payMoneyway" :key="i+1" :value="i+1">{{item}}</option>
+            </select>
+            <span class="invalid-feedback">{{ errors[0] }}</span>
+          </div>
+        </validation-provider>
+        <div class="form-group">
+          <label for="message">留言</label>
+          <textarea v-model="message" class="form-control" id="exampleFormControlTextarea1" rows="3"></textarea>
+        </div>
+
+        <!-- 送出表單使用 submit 的方法，如果驗證未通過則 disabled 該按鈕 -->
+        <button type="submit" class="btn btn-primary" :disabled="invalid">送出表單</button>
+      </form>
+    </validation-observer>
+  </div>
+
+  <script type="module">
+    import zh_TW from './zh_TW.js';//匯入多國語系
+    VeeValidate.localize('tw', zh_TW);//使用多國語系
+  </script>
+  <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
+    integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous">
+    </script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
+    integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous">
+    </script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"
+    integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous">
+    </script>
+  <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vee-validate/3.3.0/vee-validate.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue-loading-overlay@3"></script>
+  <script src="all.js"></script>
+</body>
+
+</html>
